@@ -3,6 +3,9 @@ import helmet from 'helmet';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 import authRoutes from './routes/authRoutes.js';
 import groupRoutes from './routes/groupRoutes.js';
 import { groupExpenseRouter, singleExpenseRouter } from './routes/expenseRoutes.js';
@@ -11,14 +14,28 @@ import balanceRoutes from './routes/balanceRoutes.js';
 import analyticsRoutes from './routes/analyticsRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistPath = path.resolve(__dirname, '../../client/dist');
+
 const app = express();
 
-// Security headers
-app.use(helmet());
+// Security headers (configure CSP to allow OCR workers and DiceBear avatars)
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 
 // CORS configuration - support cookies and credentials
+const configuredOrigins = (process.env.CLIENT_URL || '')
+  .split(',')
+  .map((url) => url.trim().replace(/\/$/, ''))
+  .filter(Boolean);
+
 const allowedOrigins = [
-  process.env.CLIENT_URL || 'http://localhost:5173',
+  ...configuredOrigins,
   'http://localhost:5173',
   'http://127.0.0.1:5173',
 ];
@@ -76,6 +93,17 @@ app.use('/api/v1/groups/:groupId/settlements', groupSettlementRouter);
 app.use('/api/v1/settlements', singleSettlementRouter);
 app.use('/api/v1/groups/:groupId', balanceRoutes);
 app.use('/api/v1/analytics', analyticsRoutes);
+
+// Serve static client assets in production if client/dist exists (Full-stack single service mode)
+if (fs.existsSync(clientDistPath)) {
+  app.use(express.static(clientDistPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(clientDistPath, 'index.html'));
+  });
+}
 
 // Centralized error handling
 app.use(errorHandler);

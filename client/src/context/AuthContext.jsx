@@ -20,9 +20,11 @@ export const AuthProvider = ({ children }) => {
       if (res.data?.data?.user) {
         setUser(res.data.data.user);
       } else {
+        localStorage.removeItem('splitsmart_token');
         setUser(null);
       }
     } catch (err) {
+      localStorage.removeItem('splitsmart_token');
       setUser(null);
     } finally {
       setLoading(false);
@@ -32,6 +34,9 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const res = await api.post('/auth/login', { email, password });
+      if (res.data?.data?.token) {
+        localStorage.setItem('splitsmart_token', res.data.data.token);
+      }
       setUser(res.data.data.user);
       toast.success(`Welcome back, ${res.data.data.user.name}!`);
       return res.data;
@@ -44,6 +49,9 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const res = await api.post('/auth/register', userData);
+      if (res.data?.data?.token) {
+        localStorage.setItem('splitsmart_token', res.data.data.token);
+      }
       setUser(res.data.data.user);
       toast.success(`Welcome to SplitSmart, ${res.data.data.user.name}!`);
       return res.data;
@@ -56,10 +64,12 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       await api.post('/auth/logout');
+    } catch (err) {
+      // ignore
+    } finally {
+      localStorage.removeItem('splitsmart_token');
       setUser(null);
       toast.success('Logged out successfully');
-    } catch (err) {
-      setUser(null);
     }
   };
 
